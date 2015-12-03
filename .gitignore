@@ -1,1 +1,4 @@
-*.swap
+*.swp
+
+bin/
+obj/
