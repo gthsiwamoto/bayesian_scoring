@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "read_record.h"
+#include "record.h"
+#include "contingency_table.h"
 
 int main(int argc, char **argv){
     int c;
@@ -37,7 +38,14 @@ int main(int argc, char **argv){
     printf("record_file: %s\n", record_file);
     printf("bound: %s\n", bound);
 
-    read_record(record_file);
+    record_t record = read_record(record_file);
+    for(int i = 0; i < record_info.instances; i++){
+        for(int j = 0; j < record_info.attributes; j++)
+            printf("%s ", record[i][j]);
+        printf("\n");
+    }
+
+    create_contingency_table(record, record_info);
 
     return 0;
 }
