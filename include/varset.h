@@ -3,9 +3,11 @@
 
 #include <stdint.h>
 
-typedef uint64_t varset_t;
+typedef unsigned long varset_t;
 
 int varset_get(varset_t var, int index);
 void varset_set(varset_t *var, int index);
+void varset_clear(varset_t *var, int index);
+void varset_next(varset_t *var);
 
 #endif //VARSET_H

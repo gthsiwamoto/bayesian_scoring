@@ -12,5 +12,6 @@ typedef struct{
 } score_cache_t;
 
 score_cache_t create_score_cache(int attributes);
+void free_score_cache(score_cache_t cache);
 
 #endif // SCORE_CACHE_H

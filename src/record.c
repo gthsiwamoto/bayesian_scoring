@@ -27,10 +27,12 @@ int *get_cardinality(record_t record, int instances, int attributes){
             if(strcmp(columns[k - 1],columns[k]) != 0){
                 count++;
                 index++;
+                //printf("%s -> %d, ", columns[k - 1], index - 1);
                 sprintf(columns[k - 1], "%d", index - 1);
             }else
                 sprintf(columns[k - 1], "%d", index);
         }
+        //printf("%s -> %d\n", columns[k - 1], index);
         sprintf(columns[k - 1], "%d", index);
         cardinality[i] = count;
     }

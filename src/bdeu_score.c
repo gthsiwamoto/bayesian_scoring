@@ -3,14 +3,15 @@
 #include <math.h>
 #include "bdeu_score.h"
 
-void initialize_scratch(record_info_t info){
-    scratch_space = (scratch_t *)malloc(info.attributes * sizeof(scratch_t));
+scratch_t *initialize_scratch(record_info_t info){
+    scratch_t *scratch_space = (scratch_t *)malloc(info.attributes * sizeof(scratch_t));
     for(int i = 0; i < info.attributes; i++){
         scratch_t scratch;
         scratch.variable = i;
         scratch.l_r_i = log(info.cardinality[i]);
         scratch_space[i] = scratch;
     }
+    return scratch_space;
 }
 
 void lg(varset_t parents, scratch_t *scratch, record_info_t info, double ess){
@@ -27,9 +28,6 @@ void lg(varset_t parents, scratch_t *scratch, record_info_t info, double ess){
     scratch->lg_ijk = lgamma(scratch->a_ijk);
 }
 
-void calculate_internal(varset_t variables, scratch_t *scratch){
-}
-
 int next_index(int index[], int variable, varset_t variables, record_info_t info){
     int start = info.attributes;
     for(int i = 0; i < info.attributes; i++)
@@ -41,16 +39,16 @@ int next_index(int index[], int variable, varset_t variables, record_info_t info
         return 1;
     }else
         index[start++] = 0;
-    for(int i = info.attributes - 1; i >= 0; i--){
-        if(i != variable)
-            if(varset_get(variables, i)){
-                if(index[start] < info.cardinality[i] - 1){
-                    index[start++]++;
-                    return 0;
-                }else
-                    index[start++] = 0;
-            }
-    }
+
+    for(int i = info.attributes - 1; i >= 0; i--)
+        if(i != variable && varset_get(variables, i)){
+            if(index[start] < info.cardinality[i] - 1){
+                index[start++]++;
+                return 0;
+            }else
+                index[start++] = 0;
+        }
+    
     return -1;
 }
 
@@ -63,83 +61,101 @@ void last_index(int last[], int first_index[], varset_t variables, record_info_t
     }
 }
 
-double calculate_bdeu_score(int variable, varset_t parents, double ess, record_info_t info, contingency_table_t ct){
+double calculate_bdeu_score(int variable, varset_t parents, double ess, record_info_t info, contingency_table_t ct, scratch_t scratch_space[], score_cache_t *cache){
     scratch_t scratch = scratch_space[variable];
     lg(parents, &scratch, info, ess);
+
     varset_t variables = parents;
     varset_set(&variables, variable);
 
-    scratch.score = 0;
     int *index = (int *)malloc(info.attributes * sizeof(int));
     int *last = (int *)malloc(info.attributes * sizeof(int));
     for(int i = 0; i < info.attributes; i++){
         index[i] = 0;
         last[i] = 0;
     }
-    update_key(&ct, variable, variables, info);
+
+    update_keys(&ct, variable, variables, info);
+
     int pa_count = 0;
     int total = 0;
+    double score = 0;
+    double pa_score = 0;
+
+    double new_bound = 0;
+    int sn = 0; // for bound
     while(1){
         last_index(last, index, ~variables, info);
-        printf("\n");
-        for(int i = 0; i < info.attributes; i++)
-            printf("%d", index[i]);
-        printf("\n");
-        for(int i = 0; i < info.attributes; i++)
-            printf("%d", last[i]);
-        printf("\n");
-        int count = contingency_table_sum(ct, variable, variables, index, last, info.attributes, info.cardinality);
-        scratch.score += lgamma(scratch.a_ijk + count);
-        scratch.score -= scratch.lg_ijk;
-        printf("count: %d, score %f\n", count, scratch.score);
+
+        int count = contingency_table_sum(ct, variable, variables, index, last, info);
+        if(count != 0)
+            sn++;
+
+        score += lgamma(scratch.a_ijk + count);
+        score -= scratch.lg_ijk;
+
         int next_status = next_index(index, variable, variables, info);
         pa_count += count;
         total += count;
-        if(next_status == 1)
-            ;
-        else if(next_status == 0){
-            printf("pa_count: %d\n", pa_count);
-            scratch.score += scratch.lg_ij;
-            scratch.score -= lgamma(scratch.a_ij + pa_count);
-            pa_count = 0;
-        }else{
-            printf("pa_count: %d\n", pa_count);
-            scratch.score += scratch.lg_ij;
-            scratch.score -= lgamma(scratch.a_ij + pa_count);
-            break;
-        }
-    }
+        if(next_status != 1){
+            pa_score += scratch.lg_ij;
+            pa_score -= lgamma(scratch.a_ij + pa_count);
+            
+            // new bound
+            for(int i = 1; i < pa_count; i++){
+                new_bound += log(i - 1 + scratch.a_ijk) - log(i - 1 + info.cardinality[variable] * scratch.a_ijk);
+            }
 
-    /*
-    if(parents != variables)
-        while(1){
-            last_index(last, index, ~parents, info);
-            sort_index(index, sorted_index, parents, info);
-            sort_index(last, sorted_last, parents, info);
-            for(int i = 0; i < info.attributes; i++)
-                printf("%d", sorted_index[i]);
-            printf("\n");
-            for(int i = 0; i < info.attributes; i++)
-                printf("%d", sorted_last[i]);
-            printf("\n");
-            int count = contingency_table_sum(ct, sorted_index, sorted_last, info.attributes, info.cardinality);
-            scratch.score += scratch.lg_ij;
-            scratch.score -= lgamma(scratch.a_ij + count);
-            printf("count: %d, score %f\n", count, scratch.score);
-            if(!next_index(index, parents, info))
+            if(next_status == 0)
+                pa_count = 0;
+            else if(next_status == -1)
                 break;
         }
-    else{
-        scratch.score += scratch.lg_ij;
-        scratch.score -= lgamma(scratch.a_ij + info.instances);
     }
-    */
-    printf("total: %d, score: %f\n", total, scratch.score);
+
+    // prune Campos
+    if(scratch.a_ij <= 0.8349){
+        double bound = -1.0 * sn * scratch.l_r_i;
+        if(total != info.instances){
+            for(int i = 0; i < info.attributes; i++)
+                if(varset_get(variables, i))
+                    printf("1");
+                else
+                    printf("0");
+            printf("\n");
+            printf("total: %d, variables: %ld, bound: %f, sn: %d, lri: %f\n", total, variables, bound, sn, scratch.l_r_i);
+        }
+        for(int i = 0; i < info.attributes; i++){
+            if(varset_get(parents, i)){
+                varset_clear(&parents, i);
+
+                double tmp = cache->scores[parents];
+
+                //printf("tmp: %f, bound: %f\n", tmp, bound);
+                if(tmp > bound)
+                    return 0;
+
+                varset_set(&parents, i);
+            }
+        }
+    }
+
+    // new bound
+    for(int i = 0; i < info.attributes; i++){
+        if(varset_get(parents, i)){
+            varset_clear(&parents, i);
+
+            double tmp = cache->scores[parents];
+            if(tmp > new_bound)
+                return 0;
+
+            varset_set(&parents, i);
+        }
+    }
+    //printf("total: %d, score: %f\n", total, score + pa_score);
 
     free(index);
-    free(last);
-    /*
-    printf("l_r_i: %f, lg_ij: %f, lg_ijk: %f, a_ij: %f, a_ijk:%f\n", scratch.l_r_i, scratch.lg_ij, scratch.lg_ijk, scratch.a_ij, scratch.a_ijk);
-    */
-    return scratch.score;
+    //free(last);
+
+    return score + pa_score;
 }
