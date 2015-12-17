@@ -17,6 +17,6 @@ typedef struct{
 
 scratch_t *initialize_scratch(record_info_t info);
 
-double calculate_bdeu_score(int variable, varset_t parents, double ess, record_info_t info, contingency_table_t ct, scratch_t scratch_space[], score_cache_t *cache);
+double calculate_bdeu_score(int variable, varset_t parents, double ess, record_info_t info, contingency_table_t ct, scratch_t scratch_space[], score_cache_t *cache, int bound_type);
 
 #endif //BDEU_SCORE_H

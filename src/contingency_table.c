@@ -119,7 +119,7 @@ int get_last_index_by_key(index_map_t *map, int size, unsigned long long key){
     return max;
 }
 
-int contingency_table_sum(contingency_table_t ct, int variable, varset_t variables, int first[], int last[], record_info_t info){
+int contingency_table_sum(contingency_table_t ct, int variable, varset_t variables, int first[], int last[], record_info_t info, int *map_index){
     unsigned long long key_first = 0;
     unsigned long long key_last = 0;
     unsigned long long digit = 1;
@@ -153,25 +153,11 @@ int contingency_table_sum(contingency_table_t ct, int variable, varset_t variabl
 
     int sum = 0;
     int index = first_index;
+    //printf("first_index: %d, last_index: %d\n", first_index, last_index);
     while(index <= last_index && index < ct.unassigned_index)
         sum += ct.table[ct.index_map[index++].index];
 
-    // DEBUG
-    /*
-    if(variable == 0 && variables == 11){
-        printf("first: ");
-        for(int i = 0; i < info.attributes; i++)
-            printf("%d", first[i]);
-        printf("\n");
-        printf("last: ");
-        for(int i = 0; i < info.attributes; i++)
-            printf("%d", last[i]);
-        printf("\n");
-        printf("\n");
-        printf("key_first: %lld, key_last: %lld\n", key_first, key_last);
-        printf("first_index: %d, last_index: %d\n\n", first_index, last_index);
-    }
-    */
+    *map_index = index;
 
     return sum;
 }

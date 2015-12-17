@@ -10,7 +10,7 @@
 #include "score_calculator.h"
 
 int main(int argc, char **argv){
-    double ess = 1.0;
+    double ess = 1;
     int c;
     char *bound = NULL;
     char *record_file;
@@ -38,6 +38,9 @@ int main(int argc, char **argv){
         fprintf(stderr, "ERROR: Argument error.");
         exit(1);
     }
+
+    if(bound == NULL)
+        bound = "0";
 
     clock_t start = clock();
 
